@@ -1,0 +1,6 @@
+/.vscode
+/archive - Kopie
+/archive
+/model
+*.code-workspace
+mnist_tutorial.py
