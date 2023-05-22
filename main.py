@@ -82,18 +82,18 @@ def run():
                      directory='tune',
                      project_name='tuned_penguins_vs_turtles')
                 stop_early = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5)
-                epochs = 50
+                epochs = 20
                 tuner.search(train_ds, validation_data=val_ds, epochs=epochs, batch_size=batch_size, callbacks=[stop_early])
                 best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
                 print(best_hps)
                 print("-----------")
-                print(best_hps.get("filters_1"), best_hps.get("filters_2"), best_hps.get("filters_1"))
-                print(best_hps.get("activation"))
-                print(best_hps.get("drop"))
-                print(best_hps.get("dense_units"))
-                print(best_hps.get("learning_rate"))
+                print("Filters: ", best_hps.get("filters_1"), best_hps.get("filters_2"), best_hps.get("filters_1"))
+                print("Activation: ", best_hps.get("activation"))
+                print("Droprate: ", best_hps.get("drop"))
+                print("Dense units: ", best_hps.get("dense_units"))
+                print("Learning rate: ", best_hps.get("learning_rate"))
                 best_model = tuner.hypermodel.build(best_hps)
-                best_history = best_model.fit(train_ds, validation_data=val_ds, epochs=50)
+                best_history = best_model.fit(train_ds, validation_data=val_ds, epochs=epochs)
                 plot_training_results(best_history)
                 best_model.save("best_model")
                 sys.exit()
