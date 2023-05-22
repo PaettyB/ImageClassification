@@ -1,6 +1,9 @@
 /.vscode
 /archive - Kopie
 /archive
+/archive_crop
 /model
+/best_model
+/tune
 *.code-workspace
 mnist_tutorial.py
