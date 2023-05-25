@@ -5,5 +5,7 @@
 /model
 /best_model
 /tune
+/fashion_tune
+/fashion_tune_conv
 *.code-workspace
 mnist_tutorial.py

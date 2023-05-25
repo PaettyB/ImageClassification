@@ -11,7 +11,7 @@ import pathlib
 import matplotlib.pyplot as plt
 
 
-batch_size = 32
+batch_size = 5
 img_height = 400
 img_width = 400
 
@@ -50,7 +50,7 @@ def main():
     class_names = train_ds.class_names
 
     #PERFORMANCE OPTIMIZATION
-    if False:
+    if True:
         AUTOTUNE = tf.data.AUTOTUNE
 
         train_ds = train_ds.cache().prefetch(buffer_size=AUTOTUNE)
@@ -68,26 +68,27 @@ def main():
 def run():
     global epochs, model
     if 'model' not in globals():
-        if (input("Load existing model? (y/n): ") == "y"):
+        if (input("Load existing model? (y/[n]): ") == "y"):
             print("Loading model")
             model = tf.keras.models.load_model("model")
         else:
             n = input("Create tuned model? ([y]/n): ")
             if (n == "y" or n ==""):
                 print("Creating tuned model")
-                tuner = kt.Hyperband(create_tuned_model,
+                tuner = kt.Hyperband(create_tuned_model_v2,
                      objective='val_accuracy',
                      max_epochs=10,
-                     factor=3,
+                     factor=2,
                      directory='tune',
-                     project_name='tuned_penguins_vs_turtles')
-                stop_early = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5)
-                epochs = 20
-                tuner.search(train_ds, validation_data=val_ds, epochs=epochs, batch_size=batch_size, callbacks=[stop_early])
+                     project_name='non_softmax')
+                stop_early = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=4)
+                epochs = 40
+                tuner.search(train_ds, validation_data=val_ds, batch_size=batch_size, callbacks=[stop_early])
                 best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
                 print(best_hps)
                 print("-----------")
                 print("Filters: ", best_hps.get("filters_1"), best_hps.get("filters_2"), best_hps.get("filters_1"))
+                print("Kernels: ", best_hps.get("kernel_1"), best_hps.get("kernel_2"), best_hps.get("kernel_1"))
                 print("Activation: ", best_hps.get("activation"))
                 print("Droprate: ", best_hps.get("drop"))
                 print("Dense units: ", best_hps.get("dense_units"))
@@ -166,9 +167,9 @@ def create_tuned_model(hp: kt.HyperParameters):
     model.add(data_augmentation)
     model.add(layers.Rescaling(1./255))
 
-    hp_filters_1 = hp.Choice("filters_1", values=[4,8,16,32])
-    hp_filters_2 = hp.Choice("filters_2", values=[4,8,16,32,64,128])
-    hp_filters_3 = hp.Choice("filters_3", values=[4,8,16,32,64,128])
+    hp_filters_1 = hp.Choice("filters_1", values=[8,16,32, 64])
+    hp_filters_2 = hp.Choice("filters_2", values=[8,16,32,64,128])
+    hp_filters_3 = hp.Choice("filters_3", values=[8,16,32,64,128])
     hp_activation = hp.Choice("activation", values=["relu", "tanh", "sigmoid"])
 
     hp_drop = hp.Float("drop", min_value=0.05, max_value=0.3, step=0.05)
@@ -186,6 +187,49 @@ def create_tuned_model(hp: kt.HyperParameters):
     model.add(layers.Flatten())
     model.add(layers.Dense(hp_dense, activation=hp_activation))
     model.add(layers.Dense(num_classes, activation="softmax"))
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        metrics=['accuracy'])
+    return model
+
+def create_tuned_model_v2(hp: kt.HyperParameters):
+    num_classes = len(class_names)
+    model = Sequential()
+    data_augmentation = Sequential([
+            layers.RandomFlip("horizontal",
+                            input_shape=(img_height,
+                                        img_width,
+                                        3)),
+            # layers.RandomRotation(0.1),
+            # layers.RandomZoom(0.1),
+        ])
+    model.add(data_augmentation)
+    model.add(layers.Rescaling(1./255))
+
+    hp_filters_1 = hp.Choice("filters_1", values=[3,8,16,32,64])
+    hp_filters_2 = hp.Choice("filters_2", values=[3,8,16,32,64])
+    hp_filters_3 = hp.Choice("filters_3", values=[3,8,16,32,64])
+    
+    hp_kernel_1 = hp.Choice("kernel_1", values=[3,5,10])
+    hp_kernel_2 = hp.Choice("kernel_2", values=[3,5,10])
+    hp_kernel_3 = hp.Choice("kernel_3", values=[3,5,10])
+    # hp_activation = hp.Choice("activation", values=["relu", "tanh"])
+
+    hp_drop = hp.Float("drop", min_value=0.05, max_value=0.3, step=0.05)
+    hp_dense = hp.Int("dense_units", min_value=128, max_value=1024, step=64)
+
+    hp_learning_rate = hp.Choice("learning_rate", values=[1e-2, 1e-3, 1e-4])
+
+    model.add(layers.Conv2D(hp_filters_1, hp_kernel_1, padding="same", activation="relu"))
+    model.add(layers.MaxPooling2D())
+    model.add(layers.Conv2D(hp_filters_2, hp_kernel_2, padding="same", activation="relu"))
+    model.add(layers.MaxPooling2D())
+    model.add(layers.Conv2D(hp_filters_3, hp_kernel_3, padding="same", activation="relu"))
+    model.add(layers.MaxPooling2D())
+    model.add(layers.Dropout(hp_drop))
+    model.add(layers.Flatten())
+    model.add(layers.Dense(hp_dense, activation="relu"))
+    model.add(layers.Dense(num_classes))
     model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=['accuracy'])
